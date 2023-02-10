@@ -18,6 +18,7 @@ normalize <- function(x){return ((x-min(x))/(max(x)-min(x)))}
 HD_Dataset_Normalized <- as.data.frame(lapply(HD_Dataset, normalize))
 
 # We split the dataset into training set and testing set.
+set.seed(123)
 split <- sample.split(HD_Dataset_Normalized, SplitRatio = 0.7)
 train_HD <- subset(HD_Dataset_Normalized, split == "TRUE")
 test_HD <- subset(HD_Dataset_Normalized, split == "FALSE")
