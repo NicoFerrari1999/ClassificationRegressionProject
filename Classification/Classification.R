@@ -1,70 +1,75 @@
-install.packages("caTools")
-install.packages("class")
-install.packages("caret")
-install.packages("Amelia")
 library(caTools)
 library(class)
 library(e1071)
 library(caret)
 library(Amelia)
 
-HD_Dataset <- read.csv("C:\\Users\\ferra\\Desktop\\Progetto\\Classification\\heart.csv")
-
-# We start with PCA feature extraction and we choose only the features with a proportion of variance > 0.05.
-heartDiseaseSet.pca <- prcomp(HD_Dataset, center=TRUE, scale. = TRUE)
+HD_Dataset <- read.csv("C:\\Users\\Nico\\Desktop\\Progetto Morasca\\Classification\\heart.csv")
 
 # Then we normalized the dataset so that the output remains unbiased.
 normalize <- function(x){return ((x-min(x))/(max(x)-min(x)))}
 HD_Dataset_Normalized <- as.data.frame(lapply(HD_Dataset, normalize))
+n_iter <- 50
 
 # We split the dataset into training set and testing set.
-set.seed(123)
-split <- sample.split(HD_Dataset_Normalized, SplitRatio = 0.7)
-train_HD <- subset(HD_Dataset_Normalized, split == "TRUE")
-test_HD <- subset(HD_Dataset_Normalized, split == "FALSE")
+#set.seed(123)
+index <- createDataPartition(HD_Dataset_Normalized$output, p = 0.7, list = FALSE)
+Train_HD <- HD_Dataset_Normalized[index, 1:13]
+Train_Label_HD <- HD_Dataset_Normalized[index, 14]
+Test_HD <- HD_Dataset_Normalized[-index, 1:13]
+Test_Label_HD <- HD_Dataset_Normalized[-index, 14]
 
+Train_Label_HD <- as.factor(Train_Label_HD)
+Test_Label_HD <- as.factor(Test_Label_HD)
+Train_Label_HD <- factor(Train_Label_HD, levels = unique(c(Train_Label_HD, Test_Label_HD)))
+Test_Label_HD <- factor(Test_Label_HD, levels = unique(c(Train_Label_HD, Test_Label_HD)))
+
+accuracy_knn <- c()
 
 # --------------- K-NN ---------------
 
-train_Scale_HD <- scale(train_HD)
-test_Scale_HD <- scale(test_HD)
+for (i in 1:n_iter) {
+  
+  model <- knn(Train_HD, Test_HD, Train_Label_HD, k = i)
+  
+  cm <- confusionMatrix(model, Test_Label_HD)
+  
+  accuracy_knn[i] <- cm$overall[1]
+  
+}
 
-# In order to find a the suitable value of K we just count the number of rows of the training set 
-# and choose K as the square root of the number of rows.
-NROW(train_Scale_HD)
-#Result = 194 → sqrt(194)=13.6 → K=13 V K = 14
+plot(1:n_iter, accuracy_knn, type = "l", xlab = "K", ylab = "Accuracy", main = "Accuracy of KNN Classifier", col = "blue")
+points(1:50, accuracy_knn, pch = 20, col = "red")
+axis(1, at = seq(0, 50, by = 2), labels = seq(0, 50, by = 2))
 
-# Then we set our K-NN classifier with K = 13
-KNN_Classifier_13 <- knn(train = train_Scale_HD,
-                      test = test_Scale_HD,
-                      cl = train_HD$output,
-                      k=13)
+jaccard_knn <- (cm$table[1, 1] / (cm$table[1, 1] + cm$table[1, 2] + cm$table[2, 1]))
+jouden_knn <- ((cm$table[1, 1]/(cm$table[1, 1]+cm$table[2, 1])) - ((cm$table[1, 2])/(cm$table[1, 2]+cm$table[2, 2])))
+markedness_knn <- ((cm$table[1, 1]/(cm$table[1, 1] + cm$table[1, 2]))-((cm$table[2, 1])/(cm$table[2, 1] + cm$table[2, 2])))
 
-# Then we set our K-NN classifier with K = 14
-KNN_Classifier_14 <- knn(train = train_Scale_HD,
-                         test = test_Scale_HD,
-                         cl = train_HD$output,
-                         k=14)
-
-# We used a confusion matrix just to check our prediction.
-conf_matrix_13 <- table(test_HD$output, KNN_Classifier_13)
-conf_matrix_14 <- table(test_HD$output, KNN_Classifier_14)
-conf_matrix_13
-conf_matrix_14
-
-# Finally, we have calculated the misclassification error and the accuracy.
-misClassError_13 <- mean(KNN_Classifier_13 != test_HD$output)
-misClassError_14 <- mean(KNN_Classifier_14 != test_HD$output)
-print(paste('Accuracy =', 1-misClassError_13))
-print(paste('Accuracy =', 1-misClassError_14))
-
-# --------------- FINE K-NN ---------------
 # --------------- NAIVE BAYES  ---------------
 
-NB_Class <- naiveBayes(output ~ ., data = train_HD)
+model_NB <- naiveBayes(Train_HD, Train_Label_HD)
 
-y_Predict <-predict(NB_Class, newdata = test_HD)
+pred <-predict(model_NB, Test_HD)
 
-conf_matrix_NB <- table(test_HD$output, y_Predict)
+cm_NB <- confusionMatrix(pred, Test_Label_HD)
 
-confusionMatrix(conf_matrix_NB)
+jaccard_NB <- (cm_NB$table[1, 1] / (cm_NB$table[1, 1] + cm_NB$table[1, 2] + cm_NB$table[2, 1]))
+jouden_NB <- ((cm_NB$table[1, 1]/(cm_NB$table[1, 1]+cm_NB$table[2, 1])) - ((cm_NB$table[1, 2])/(cm_NB$table[1, 2]+cm_NB$table[2, 2])))
+markedness_NB <- ((cm_NB$table[1, 1]/(cm_NB$table[1, 1] + cm_NB$table[1, 2]))-((cm_NB$table[2, 1])/(cm_NB$table[2, 1] + cm_NB$table[2, 2])))
+
+# ---------- COMPARISON BETWEEN OUTPUTS ----------
+print(paste("KNN CONFUSION MATRIX: "))
+print(cm$table)
+print(paste("NAIVE BAYES CONFUSION MATRIX: "))
+print(cm_NB$table)
+print(paste("KNN ACCURACY: ", cm$overall[1]))
+print(paste("NAIVE BAYES ACCURACY: ", cm_NB$overall[1]))
+print(paste("KNN JACCARD: ", jaccard_knn))
+print(paste("NAIVE BAYES JACCARD: ", jaccard_NB))
+print(paste("KNN JOUDEN: ", jouden_knn))
+print(paste("NAIVE BAYES JOUDEN: ", jouden_NB))
+print(paste("KNN MARKEDNESS: ", markedness_knn))
+print(paste("NAIVE BAYES MARKEDNESS: ", markedness_NB))
+
+
